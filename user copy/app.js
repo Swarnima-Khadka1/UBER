@@ -3,7 +3,7 @@ const express= require('express');
 const app= express();
 const cookieParser= require('cookie-parser'); // require the cookie-parser middleware
 const userRoutes= require('./routes/user.routes.js'); // require the user routes module
-const connectDB= require('./db/db'); // require the database connection module
+const connectDB= require('./db/db.js'); // require the database connection module
 
 
 connectDB(); // connect to the database

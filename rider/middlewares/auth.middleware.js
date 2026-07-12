@@ -1,8 +1,8 @@
 const jwt= require('jsonwebtoken');
-const userModel= require('../models/user.model');
+const riderModel= require('../models/rider.model');
 const BlacklistToken= require('../models/blacklisttoken.models');
 
-module.exports.userAuth = async (req, res, next) =>{
+module.exports.riderAuth = async (req, res, next) =>{
     try{
         const token = req.cookies.token|| req.headers.authorization?.split(' ')[1]; // Get token from cookie or Authorization header
         if(!token){
@@ -13,12 +13,12 @@ module.exports.userAuth = async (req, res, next) =>{
             return res.status(401).json({message: 'Unauthorized'});
         }
         const decoded= jwt.verify(token, process.env.JWT_SECRET);
-        const user= await userModel.findById(decoded.id)
+        const rider= await riderModel.findById(decoded.id)
 
-        if(!user){
+        if(!rider){
             return res.status(401).json({message: 'Unauthorized'});
         }
-        req.user= user;
+        req.rider= rider;
         next();
     }
     catch(err){
