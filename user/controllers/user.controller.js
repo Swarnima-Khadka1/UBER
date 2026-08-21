@@ -2,6 +2,9 @@ const userModel= require('../models/user.model');
 const bcrypt= require('bcrypt');
 const jwt = require('jsonwebtoken');
 const BlacklistToken = require('../models/blacklisttoken.models');
+const { subscribeToQueue } = require('../service/rabbit');
+const EventEmitter = require('events');
+const rideEventEmitter = new EventEmitter();
 
 module.exports.register = async (req, res) => {
     try{
@@ -16,16 +19,17 @@ module.exports.register = async (req, res) => {
         const newUser = new userModel({
             name,
             email,
-            password: hashedPass
+            password: hashedPass,
+        
         });
 
         await newUser.save(); // save the new user to the database  
         //create a token for the new user
-        const token = jwt.sign({id: newUser._id}, process.env.JWT_SECRET); // secret key for signing the token
+        const token = jwt.sign({id: newUser._id}, process.env.JWT_SECRET, {expiresIn: '7d'}); // secret key for signing the token, expires in 7 days
 
         res.cookie('token', token);
         delete newUser._doc.password; // remove the password from the user object before sending it in the response
-        res.send({message: 'User created successfully', user: newUser});
+        res.send({message: 'User created successfully', user: newUser, token});
     }
     catch(err){
         console.error(err);
@@ -45,7 +49,7 @@ module.exports.login = async(req, res) =>{
         if(!isMatch){
             return res.status(400).json({message: 'Invalid credentials'});
         }
-        const token = jwt.sign({id: user._id}, process.env.JWT_SECRET);
+        const token = jwt.sign({id: user._id}, process.env.JWT_SECRET, {expiresIn: '7d'});
         res.cookie('token', token);
         res.send({message: 'Login successful'});
     }
@@ -85,3 +89,33 @@ module.exports.profile = async(req, res) =>{
         res.status(500).json({message: 'Server error'});
     }
 }
+
+module.exports.getRideStatus = async(req, res) =>{
+    //long polling implementation to get ride status updates
+    console.log('getRideStatus called for user:', req.user._id);
+    
+    let responseSent = false;
+    
+    const timeout = setTimeout(() => {
+        if(!responseSent && !res.headersSent){
+            responseSent = true;
+            console.log('Ride status timeout for user:', req.user._id);
+            res.status(408).json({message: 'Request timeout - no ride status update received'});
+        }
+    }, 30000);
+    
+    rideEventEmitter.once('rideStatusUpdate', (data) => {
+        if(!responseSent && !res.headersSent){
+            responseSent = true;
+            clearTimeout(timeout);
+            console.log('Sending ride status to user:', req.user._id, 'Data:', data);
+            res.send({rideStatus: data});
+        }
+    });
+}
+
+subscribeToQueue('ride_status_queue', async (rideStatus) => {
+   const data= JSON.parse(rideStatus);
+   rideEventEmitter.emit('rideStatusUpdate', data);
+    console.log('Received ride status update:', data);
+});

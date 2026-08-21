@@ -8,6 +8,7 @@ router.post('/login', riderController.login);
 router.get('/logout', riderController.logout);
 router.get('/profile', riderAuth, riderController.profile);
 router.patch('/toggle-availability', riderAuth, riderController.toggleAvailability);
+router.get('/available-rides', riderAuth, riderController.getAvailableRides);
 
 
 module.exports= router;
